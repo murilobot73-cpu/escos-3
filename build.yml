@@ -1,0 +1,70 @@
+name: Compilar mod
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Preparar o projeto (abre o zip se houver um)
+        run: |
+          mkdir -p /tmp/proj
+          Z=$(find . -iname '*.zip' -not -path './.git/*' | head -1)
+          if [ -n "$Z" ]; then
+            echo "Abrindo $Z"
+            unzip -q -o "$Z" -d /tmp/proj
+          else
+            echo "Sem zip: usando os arquivos do repositório"
+            cp -r . /tmp/proj
+          fi
+          F=$(find /tmp/proj -name build.gradle | head -1)
+          if [ -z "$F" ]; then echo "ERRO: build.gradle não encontrado"; find /tmp/proj | head -50; exit 1; fi
+          DIR=$(dirname "$F")
+          echo "DIR=$DIR" >> "$GITHUB_ENV"
+          N=$(find "$DIR/src" -name '*.java' | wc -l)
+          echo "Projeto em $DIR com $N arquivos .java"
+          if [ "$N" -lt 15 ]; then echo "ERRO: faltam arquivos .java (a pasta src não foi enviada completa)"; exit 1; fi
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 25
+
+      - name: Descobrir versões do Fabric para 26.3
+        working-directory: ${{ env.DIR }}
+        run: |
+          MC=26.3
+          API=$(curl -s https://maven.fabricmc.net/net/fabricmc/fabric-api/fabric-api/maven-metadata.xml \
+            | grep -o "<version>[^<]*+${MC}[^<]*</version>" | sed 's/<[^>]*>//g' | tail -1)
+          LOADER=$(curl -s https://meta.fabricmc.net/v2/versions/loader \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)[0]['version'])")
+          LOOM=$(curl -s https://maven.fabricmc.net/net/fabricmc/fabric-loom/net.fabricmc.fabric-loom.gradle.plugin/maven-metadata.xml \
+            | grep -o "<latest>[^<]*</latest>" | sed 's/<[^>]*>//g' | head -1)
+          echo "api=$API loader=$LOADER loom=$LOOM"
+          if [ -n "$API" ]; then sed -i "s/^fabric_api_version=.*/fabric_api_version=$API/" gradle.properties; fi
+          if [ -n "$LOADER" ]; then sed -i "s/^loader_version=.*/loader_version=$LOADER/" gradle.properties; fi
+          if [ -n "$LOOM" ]; then sed -i "s/^loom_version=.*/loom_version=$LOOM/" gradle.properties; fi
+          cat gradle.properties
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: current
+
+      - name: Compilar
+        working-directory: ${{ env.DIR }}
+        run: gradle build --no-daemon
+
+      - name: Conferir o jar
+        working-directory: ${{ env.DIR }}
+        run: ls -l build/libs
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ecos_do_vazio-jar
+          path: |
+            ${{ env.DIR }}/build/libs/*.jar
+            !${{ env.DIR }}/build/libs/*-sources.jar
