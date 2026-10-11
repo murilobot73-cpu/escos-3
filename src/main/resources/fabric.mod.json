@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "id": "ecos_do_vazio",
+  "version": "${version}",
+  "name": "Ecos do Vazio",
+  "description": "Terror psicológico. Um sistema de sanidade, cinco criaturas inéditas e 14 eventos que brincam com a sua cabeça. Nada aqui quer te matar.",
+  "authors": ["Você"],
+  "license": "CC0-1.0",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["com.ecosdovazio.EcosDoVazio"],
+    "client": ["com.ecosdovazio.client.EcosDoVazioClient"]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": ">=26.3",
+    "java": ">=25",
+    "fabric-api": "*"
+  }
+}
